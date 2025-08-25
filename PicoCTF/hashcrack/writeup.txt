@@ -1,0 +1,11 @@
+hashcrack
+
+Description: A company stored a secret message on a server which got breached due to the admin using weakly hashed passwords. Can you gain access to the secret stored within the server?
+
+platform: nc verbal-sleep.picoctf.net 53299
+
+How I got the flag: 
+the netcat endpoint provided password hashes, and asked be to decrypt them.
+I used crackstation.net to crack them. and there where 3 hashes to be cracked.
+
+flag: picoCTF{UseStr0nG_h@shEs_&PaSswDs!_23622a7e}

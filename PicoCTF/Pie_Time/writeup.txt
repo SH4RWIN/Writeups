@@ -1,0 +1,10 @@
+Pie Time
+
+
+program portal: nc rescued-float.picoctf.net 52035
+program source code: https://challenge-files.picoctf.net/c_rescued_float/2757d7751ddf1be98450094c20e981031e6c654474ddeb8f646f6d98e3832c15/vuln.c
+program binary: https://challenge-files.picoctf.net/c_rescued_float/2757d7751ddf1be98450094c20e981031e6c654474ddeb8f646f6d98e3832c15/vuln
+
+this flag is obtained by exploiting a vulnerability in the code. We need to find the difference between the address of two funciton and then add it to the address of the main function and return the value to get the flag.
+
+flag: picoCTF{b4s1c_p051t10n_1nd3p3nd3nc3_93dd5fcb}

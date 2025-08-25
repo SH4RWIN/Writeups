@@ -1,0 +1,18 @@
+head-dump
+
+Description
+Welcome to the challenge! In this challenge, you will explore a web application and find an endpoint that exposes a file containing a hidden flag.
+The application is a simple blog website where you can read articles about various topics, including an article about API Documentation. Your goal is to explore the application and find the endpoint that generates files holding the server’s memory, where a secret flag is hidden.
+
+link: http://verbal-sleep.picoctf.net:63253/
+
+the page has differnet endpoints, one shows the API Docs with multiple API endpoints
+one endpoint seem suspicious, /heapdump
+doing a curl request gives random memory allocation status. 
+I downloaded it and saved it to a file to inspect it.
+With simple grep filtering i was able to find the flag
+grep -i "pico" heapdump-1754905876911.heapsnapshot
+
+vulnerabilty: confidential API endpoint exposure
+
+flag: picoCTF{Pat!3nt_15_Th3_K3y_f1179e46}

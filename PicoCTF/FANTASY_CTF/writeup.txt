@@ -1,0 +1,7 @@
+Fantasy CTF
+
+the flag is found by playing the game for sometime until the flag is revealed.
+
+link: nc verbal-sleep.picoctf.net 64240
+
+flag: picoCTF{m1113n1um_3d1710n_d5787049}

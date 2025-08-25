@@ -1,0 +1,16 @@
+DISKO 1
+
+AIM: find the flag in this disk image?
+
+Link: https://artifacts.picoctf.net/c/536/disko-1.dd.gz
+
+
+* Extract the file disko-1.dd.gz using gunzip
+--> gunzip disko-1.dd.gz
+
+The file is a disk image copied from a hard rive using the dd command in linux.
+
+* we can use strings command to read text content from the binary disk image.
+--> strings disko-1.dd.gz | grep -i "picoctf"
+
+flag: picoCTF{1t5_ju5t_4_5tr1n9_c63b02ef}

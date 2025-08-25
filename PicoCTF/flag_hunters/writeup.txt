@@ -1,0 +1,14 @@
+Flag Hunters
+
+Description
+Lyrics jump from verses to the refrain kind of like a subroutine call. There's a hidden refrain this program doesn't print by default. Can you get it to print it? There might be something in it for you.
+The program's source code can be downloaded https://challenge-files.picoctf.net/c_verbal_sleep/9ae83ffa696e29c2b57d0373cb616bc097de3dda1e87e4780273e13de712abb6/lyric-reader.py
+
+link: nc verbal-sleep.picoctf.net 61138
+
+the program has a vulnerability in its logic of how it handles semicolumns. 
+any statement written before a semicolumn and 'RETURN 0' will be executed.
+
+payload: print(song_flag_hunters);RETURN 0
+
+flag: picoCTF{70637h3r_f0r3v3r_710a5048}
