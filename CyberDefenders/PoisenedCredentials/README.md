@@ -41,7 +41,7 @@ Your organization's security team has detected a surge in suspicious network act
     
     —> fileshaare (Two a’s)
     
-    ![image.png](image.png)
+    ![image.png](Screenshots/image.png)
     
     You can find this when you apply the filters for viewing only packets from the IP 192.168.232.162 and only show packets with `llmnr` protocol.
     
@@ -49,18 +49,18 @@ Your organization's security team has detected a surge in suspicious network act
 1. We are investigating a network security incident. To conduct a thorough investigation, We need to determine the IP address of the rogue machine. What is the IP address of the machine acting as the rogue entity?
 —> `192.168.232.215` 
     
-    ![image.png](image%201.png)
+    ![image.png](Screenshots/image%201.png)
     
     `192.168.232.215` is the rogue device in this capture, as it’s responding to a mistyped broadcast query that should not respond with any legitimate response.
     
-    ![image.png](image%202.png)
+    ![image.png](Screenshots/image%202.png)
     
 
 1. As part of our investigation, identifying all affected machines is essential. What is the IP address of the second machine that received poisoned responses from the rogue machine?
     
     —>`192.168.232.176`
     
-    ![image.png](image%203.png)
+    ![image.png](Screenshots/image%203.png)
     
     Looking closely, after the poisoned reply given to `192.168.232.162` (pckt no. 51) the next reply goes to (pckt no 145) `192.168.232.176` 
     
@@ -68,7 +68,7 @@ Your organization's security team has detected a surge in suspicious network act
     
     —> `janesmith`
     
-    ![image.png](image%204.png)
+    ![image.png](Screenshots/image%204.png)
     
     Looking a the traffic we can see a SMB negotiation and session setup requests and in that info column shows the username `janesmith`
     
@@ -76,7 +76,7 @@ Your organization's security team has detected a surge in suspicious network act
 1. As part of our investigation, we aim to understand the extent of the attacker's activities. What is the hostname of the machine that the attacker accessed via SMB?
 —> ACCOUNTINGPC
     
-    ![image.png](image%205.png)
+    ![image.png](Screenshots/image%205.png)
     
     Looking at the ‘session setup request’ packet, diving more into the data of the packet we can find the Computers name. precisely go to NTLM Secure Service Provider > Target Info to find the name of the pc in the attribute “NETBIOS Computer Name”.
     
